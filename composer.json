@@ -1,7 +1,7 @@
 {
     "name": "php-coord/datapack-arctic",
     "description": "PHPCoord high-accuracy addon datapack for the Arctic",
-    "keywords": ["coord", "geo", "latitude", "longitude", "grid ref", "map", "projection", "wgs84", "osgb36", "utm", "nad", "nzmg", "gda", "ed50", "epsg", "arctic"],
+    "keywords": ["coord", "geo", "latitude", "longitude", "grid ref", "map", "projection", "arctic"],
     "type": "library",
     "homepage": "https://www.phpcoord.net/",
     "authors": [
