@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Unreleased]
+### Changed
+- Updates to extents
 
 ## [1.4.0] - 2023-11-04
 ### Changed
