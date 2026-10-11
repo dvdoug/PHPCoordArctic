@@ -15,19 +15,61 @@ import release_changelog as changelog
 ROOT = Path(__file__).resolve().parents[2]
 REAL_CHANGELOG = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
+# The checked-in changelog grows an Unreleased section on every dataset pull
+# request, so the cases below use a frozen file instead of CHANGELOG.md.
+EMPTY_CHANGELOG = """\
+# Changelog
+
+## [Unreleased]
+
+## [1.4.0] - 2023-11-04
+### Changed
+- More aggressive buffering of extent polygons
+
+## [1.3.0] - 2023-07-09
+### Changed
+- Switched polygon data format to GeoJSON
+
+## [1.2.0] - 2023-01-07
+### Changed
+- Improved polygon buffering
+
+## [1.1.0] - 2021-11-12
+### Changed
+- Compatible with PHPCoord v5
+
+## 1.0.0 - 2021-04-25
+Initial release
+
+[Unreleased]: https://github.com/dvdoug/PHPCoordArctic/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/dvdoug/PHPCoordArctic/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/dvdoug/PHPCoordArctic/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/dvdoug/PHPCoordArctic/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/dvdoug/PHPCoordArctic/compare/v1.0.0...v1.1.0
+"""
+
 
 def with_unreleased(body: str) -> str:
-    return REAL_CHANGELOG.replace("## [Unreleased]\n\n", f"## [Unreleased]\n{body}\n", 1)
+    return EMPTY_CHANGELOG.replace("## [Unreleased]\n\n", f"## [Unreleased]\n{body}\n", 1)
 
 
 class PromoteTests(unittest.TestCase):
-    def test_real_changelog_has_nothing_to_release(self) -> None:
-        empty, version, kind = changelog.plan(REAL_CHANGELOG)
+    def test_empty_unreleased_has_nothing_to_release(self) -> None:
+        empty, version, kind = changelog.plan(EMPTY_CHANGELOG)
         self.assertTrue(empty)
         self.assertIsNone(version)
         self.assertIsNone(kind)
         with self.assertRaises(changelog.NothingToRelease):
-            changelog.promote(REAL_CHANGELOG, "2026-10-11")
+            changelog.promote(EMPTY_CHANGELOG, "2026-10-11")
+
+    def test_real_changelog_can_be_planned(self) -> None:
+        empty, version, kind = changelog.plan(REAL_CHANGELOG)
+        if empty:
+            self.assertIsNone(version)
+            self.assertIsNone(kind)
+            return
+        self.assertRegex(version or "", r"^\d+\.\d+\.\d+$")
+        self.assertIn(kind, ("patch", "minor"))
 
     def test_changed_only_is_a_patch_and_preserves_the_compare_style(self) -> None:
         source = with_unreleased("### Changed\n- Updates to extents\n")
@@ -84,16 +126,26 @@ class PromoteTests(unittest.TestCase):
 
     def test_notes_for_an_existing_release_are_verbatim(self) -> None:
         self.assertEqual(
-            changelog.notes_for(REAL_CHANGELOG, "1.4.0"),
+            changelog.notes_for(EMPTY_CHANGELOG, "1.4.0"),
             "### Changed\n- More aggressive buffering of extent polygons\n",
         )
+
+    def test_notes_without_a_blank_line_under_unreleased_are_a_patch(self) -> None:
+        source = EMPTY_CHANGELOG.replace(
+            "## [Unreleased]\n\n",
+            "## [Unreleased]\n### Changed\n- Updates to extents\n\n",
+            1,
+        )
+        updated, version, kind = changelog.promote(source, "2026-10-11")
+        self.assertEqual((version, kind), ("1.4.1", "patch"))
+        self.assertIn("## [1.4.1] - 2026-10-11\n### Changed\n- Updates to extents\n", updated)
 
     def test_comment_bodies(self) -> None:
         ready = changelog.comment_body(with_unreleased("### Changed\n- Updates to extents\n"), removed=False)
         self.assertIn("release v1.4.1 (patch)", ready)
         self.assertTrue(ready.endswith("<!-- phpcoord-release-preview -->\n"))
 
-        empty = changelog.comment_body(REAL_CHANGELOG, removed=False)
+        empty = changelog.comment_body(EMPTY_CHANGELOG, removed=False)
         self.assertIn("has no notes", empty)
 
         removed = changelog.comment_body(None, removed=True)
@@ -112,10 +164,10 @@ class PromoteTests(unittest.TestCase):
     def test_promote_command_refuses_an_empty_section(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "CHANGELOG.md"
-            path.write_text(REAL_CHANGELOG, encoding="utf-8", newline="\n")
+            path.write_text(EMPTY_CHANGELOG, encoding="utf-8", newline="\n")
             code = changelog.main(["promote", str(path), "--date", "2026-10-11"])
             self.assertEqual(code, 2)
-            self.assertEqual(path.read_text(encoding="utf-8"), REAL_CHANGELOG)
+            self.assertEqual(path.read_text(encoding="utf-8"), EMPTY_CHANGELOG)
 
 
 if __name__ == "__main__":
